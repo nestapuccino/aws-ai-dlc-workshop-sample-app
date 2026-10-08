@@ -36,6 +36,49 @@ test('API lists rooms, creates a booking, and retrieves it', async (t) => {
   assert.deepEqual(await listed.json(), [result]);
 });
 
+test('API rejects an overlapping booking with 409 and the conflicting interval', async (t) => {
+  const request = await setup(t);
+  await request('/api/bookings', post(booking));
+  const response = await request(
+    '/api/bookings',
+    post({ ...booking, startTime: '2030-06-12T09:30:00Z', endTime: '2030-06-12T10:30:00Z' })
+  );
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), {
+    error: `This room is already booked by ${booking.organizer} ("${booking.title}") from 2030-06-12 09:00–10:00 UTC.`,
+    startTime: '2030-06-12T09:00:00.000Z',
+    endTime: '2030-06-12T10:00:00.000Z',
+    title: booking.title,
+    organizer: booking.organizer,
+  });
+  const listed = await request('/api/bookings?roomId=cedar&date=2030-06-12');
+  assert.equal((await listed.json()).length, 1);
+});
+
+test('a direct API call enforces the same conflict rule as any other caller', async (t) => {
+  const request = await setup(t);
+  await request('/api/bookings', post(booking));
+  const response = await request('/api/bookings', post({ ...booking }));
+  assert.equal(response.status, 409);
+});
+
+test('a back-to-back booking touching the existing end time still succeeds', async (t) => {
+  const request = await setup(t);
+  await request('/api/bookings', post(booking));
+  const response = await request(
+    '/api/bookings',
+    post({ ...booking, startTime: booking.endTime, endTime: '2030-06-12T11:00:00Z' })
+  );
+  assert.equal(response.status, 201);
+});
+
+test('an identical window in a different room still succeeds', async (t) => {
+  const request = await setup(t);
+  await request('/api/bookings', post(booking));
+  const response = await request('/api/bookings', post({ ...booking, roomId: 'maple' }));
+  assert.equal(response.status, 201);
+});
+
 test('API returns useful validation errors and does not create invalid bookings', async (t) => {
   const request = await setup(t);
   const response = await request('/api/bookings', post({ ...booking, endTime: booking.startTime }));
