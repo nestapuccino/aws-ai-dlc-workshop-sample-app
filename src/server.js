@@ -57,7 +57,7 @@ export function createAppServer({ store = createStore() } = {}) {
       console.error(error);
       message = 'Something went wrong.';
     }
-    response.status(status).json({ error: message });
+    response.status(status).json({ error: message, ...(error.details ?? {}) });
   });
   return createServer(app);
 }

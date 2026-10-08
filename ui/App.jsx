@@ -6,10 +6,14 @@ const dateLabel = (value) => new Date(`${value}T12:00:00Z`).toLocaleDateString('
   weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC',
 });
 
-async function api(path, options) {
+export async function api(path, options) {
   const response = await fetch(`/api${path}`, options);
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? 'Unable to complete the request.');
+  if (!response.ok) {
+    const error = new Error(body.error ?? 'Unable to complete the request.');
+    error.status = response.status;
+    throw error;
+  }
   return body;
 }
 
@@ -24,7 +28,7 @@ function RoomSketch({ capacity }) {
   );
 }
 
-function BookingForm({ room, date, onBooked }) {
+export function BookingForm({ room, date, onBooked }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -49,6 +53,10 @@ function BookingForm({ room, date, onBooked }) {
       form.reset();
       onBooked(booking);
     } catch (error) {
+      if (error.status === 409) {
+        form.elements.startTime.value = '';
+        form.elements.endTime.value = '';
+      }
       setError(error.message);
     } finally {
       setSaving(false);
@@ -63,28 +71,28 @@ function BookingForm({ room, date, onBooked }) {
       </div>
       <h2 className="mt-6 text-3xl tracking-tight">Book {room.name}.</h2>
       <p className="mt-2 text-sm text-white/70">{dateLabel(date)} · Up to {room.capacity} people</p>
-      <form onSubmit={submit} className="mt-8 space-y-5">
+      <form onSubmit={submit} className="mt-8 space-y-5" data-testid="booking-form">
         <fieldset disabled={saving} className="space-y-5 disabled:opacity-60">
           <label className="field-label">
             Meeting title
-            <input name="title" placeholder="e.g. Product brainstorm" required maxLength={100} />
+            <input name="title" placeholder="e.g. Product brainstorm" required maxLength={100} data-testid="booking-form-title-input" />
           </label>
           <label className="field-label">
             Organizer
-            <input name="organizer" placeholder="e.g. Alex Morgan" required maxLength={100} autoComplete="off" />
+            <input name="organizer" placeholder="e.g. Alex Morgan" required maxLength={100} autoComplete="off" data-testid="booking-form-organizer-input" />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="field-label">
               Start time
-              <input name="startTime" type="time" defaultValue="09:00" step="60" required />
+              <input name="startTime" type="time" defaultValue="09:00" step="60" required data-testid="booking-form-start-time-input" />
             </label>
             <label className="field-label">
               End time
-              <input name="endTime" type="time" defaultValue="10:00" step="60" required />
+              <input name="endTime" type="time" defaultValue="10:00" step="60" required data-testid="booking-form-end-time-input" />
             </label>
           </div>
-          {error && <p role="alert" className="rounded-xl bg-white p-3 text-sm text-red-800">{error}</p>}
-          <button className="book-button" type="submit">
+          {error && <p role="alert" className="rounded-xl bg-white p-3 text-sm text-red-800" data-testid="booking-form-error">{error}</p>}
+          <button className="book-button" type="submit" data-testid="booking-form-submit-button">
             {saving ? 'Booking…' : 'Confirm booking'} <span aria-hidden="true">↗</span>
           </button>
         </fieldset>
